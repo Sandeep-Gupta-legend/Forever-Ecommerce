@@ -1,10 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useContext } from 'react'
 import assets from '../assets/assets'
 import axios from 'axios'
-import { Backend_URL } from '../App'
+import { Backend_URL } from '../App' // Make sure this is set to http://localhost:3000
 import { toast } from 'react-toastify'
+import { ShopContext } from '../../../Frontend/src/context/ShopContext'
 
 const Add = ({token}) => {
+  const { refreshProducts } = useContext(ShopContext)
   const [image1,setImage1]=useState(null)
   const [image2,setImage2]=useState(null)
   const [image3,setImage3]=useState(null)
@@ -23,11 +25,10 @@ const Add = ({token}) => {
     e.preventDefault()
     setLoading(true)
     
-    console.log("=== FORM SUBMISSION STARTED ===")
+    console.log("=== FORM SUBMISSION ===")
     console.log("Backend URL:", Backend_URL)
-    console.log("Token present:", token ? "Yes" : "No")
+    console.log("Endpoint:", `${Backend_URL}/api/product/add`)
     
-    // Validation
     if(!name || !description || !price) {
       toast.error('Please fill all required fields')
       setLoading(false)
@@ -43,69 +44,45 @@ const Add = ({token}) => {
     try{
       const formData=new FormData()
       
-      // Append text fields
+      // Append fields as your backend expects
       formData.append("name", name)
       formData.append("description", description)
       formData.append("price", Number(price))
       formData.append("category", category)
-      formData.append("subCategory", subCategory)
+      formData.append("subCategory", subCategory) // Note: subCategory not subCatogory
       formData.append("bestseller", bestseller)
       
-      // FIX: Send sizes as comma-separated string (NOT JSON)
+      // Sizes as comma separated string
       if(sizes.length > 0) {
-        const sizesString = sizes.join(',')
-        formData.append("sizes", sizesString)
-        console.log("Sending sizes as string:", sizesString)
-      } else {
-        formData.append("sizes", "")
-        console.log("No sizes selected")
+        formData.append("sizes", sizes.join(','))
       }
       
-      // Append images
-      if(image1) {
-        console.log("Image 1:", image1.name, image1.size)
-        formData.append("image1", image1)
-      }
-      if(image2) {
-        formData.append("image2", image2)
-      }
-      if(image3) {
-        formData.append("image3", image3)
-      }
-      if(image4) {
-        formData.append("image4", image4)
-      }
+      // Append images - backend expects image1, image2, image3, image4 fields
+      if(image1) formData.append("image1", image1)
+      if(image2) formData.append("image2", image2)
+      if(image3) formData.append("image3", image3)
+      if(image4) formData.append("image4", image4)
       
-      // Debug: Log all form data
-      console.log("=== FORM DATA CONTENTS ===")
+      // Debug form data
+      console.log("Form Data:")
       for (let [key, value] of formData.entries()) {
-        if (key === 'image1' || key === 'image2' || key === 'image3' || key === 'image4') {
-          console.log(`${key}: [File] ${value.name} (${value.size} bytes)`)
-        } else {
-          console.log(`${key}: ${value}`)
-        }
+        console.log(`${key}:`, value instanceof File ? `[File] ${value.name}` : value)
       }
-      
-      const endpoint = `${Backend_URL}/api/product/add`
-      console.log("Sending to endpoint:", endpoint)
       
       const response = await axios.post(
-        endpoint, 
+        `${Backend_URL}/api/product/add`, 
         formData, 
         {
           headers: {
             'Content-Type': 'multipart/form-data',
             'token': token
-          },
-          timeout: 30000
+          }
         }
       )
       
-      console.log("=== RESPONSE RECEIVED ===")
-      console.log("Response status:", response.status)
-      console.log("Response data:", response.data)
+      console.log("Response:", response.data)
       
-      if(response.data && response.data.success) {
+      if(response.data.success) {
         toast.success('✅ Product added successfully!')
         
         // Reset form
@@ -121,39 +98,25 @@ const Add = ({token}) => {
         setImage3(null)
         setImage4(null)
         
-        // Log success
-        console.log("✅ Product saved to database")
+        // Refresh products list so it shows up in List page immediately
+        if (refreshProducts) {
+          refreshProducts()
+        }
+        
       } else {
-        toast.error(response.data?.message || 'Failed to add product')
+        toast.error(response.data.message || 'Failed to add product')
       }
       
     } catch(error) {
-      console.error("=== ERROR DETAILS ===")
-      console.error("Error name:", error.name)
-      console.error("Error message:", error.message)
+      console.error("Error:", error)
       
       if(error.response) {
-        console.error("Response status:", error.response.status)
-        console.error("Response data:", error.response.data)
-        console.error("Response headers:", error.response.headers)
-        
-        toast.error(`Server Error ${error.response.status}: ${error.response.data?.message || 'Unknown error'}`)
+        console.error("Response error:", error.response.data)
+        toast.error(`Error ${error.response.status}: ${error.response.data?.message || 'Unknown error'}`)
       } else if(error.request) {
-        console.error("No response received")
-        console.error("Request config:", error.config)
-        
-        toast.error('Cannot connect to server. Make sure backend is running.')
-        
-        // Check if backend is accessible
-        try {
-          const testResponse = await fetch(`${Backend_URL}/api/health`)
-          console.log("Health check response:", testResponse.status)
-        } catch (healthError) {
-          console.error("Cannot reach backend at all:", healthError)
-        }
+        toast.error('Cannot connect to backend server')
       } else {
-        console.error("Request setup error:", error.config)
-        toast.error(error.message || 'Request setup failed')
+        toast.error('Error: ' + error.message)
       }
     } finally {
       setLoading(false)
@@ -173,261 +136,92 @@ const Add = ({token}) => {
         return
       }
       
-      console.log("Image selected:", file.name, file.size, file.type)
       setImageFunction(file)
     }
   }
 
   const toggleSize = (size) => {
-    setSizes(prev => {
-      const newSizes = prev.includes(size) 
-        ? prev.filter(item => item !== size)
-        : [...prev, size]
-      console.log("Sizes updated:", newSizes)
-      return newSizes
-    })
-  }
-
-  // Test endpoint
-  const testEndpoint = async () => {
-    try {
-      console.log("Testing endpoint connection...")
-      const response = await axios.get(`${Backend_URL}/api/health`, {
-        timeout: 5000
-      })
-      console.log("✅ Health check response:", response.data)
-      toast.success('Backend is connected!')
-    } catch (error) {
-      console.error("❌ Health check failed:", error)
-      toast.error('Cannot connect to backend')
-    }
-  }
-
-  // Test with simple data
-  const testSimpleProduct = async () => {
-    try {
-      const testFormData = new FormData()
-      testFormData.append("name", "Test Product")
-      testFormData.append("description", "Test Description")
-      testFormData.append("price", "29.99")
-      testFormData.append("category", "Men")
-      testFormData.append("subCategory", "Topwear")
-      testFormData.append("sizes", "M,L") // Simple comma-separated
-      testFormData.append("bestseller", "false")
-      
-      // Create a simple test image
-      const canvas = document.createElement('canvas')
-      canvas.width = 100
-      canvas.height = 100
-      const ctx = canvas.getContext('2d')
-      ctx.fillStyle = '#FF6B6B'
-      ctx.fillRect(0, 0, 100, 100)
-      
-      canvas.toBlob(async (blob) => {
-        testFormData.append("image1", blob, "test.png")
-        
-        const response = await axios.post(
-          `${Backend_URL}/api/product/add`,
-          testFormData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              'token': token
-            }
-          }
-        )
-        
-        console.log("Test product response:", response.data)
-        if (response.data.success) {
-          toast.success('Test product added!')
-        } else {
-          toast.error('Test failed: ' + response.data.message)
-        }
-      })
-    } catch (error) {
-      console.error("Test error:", error)
-      toast.error('Test failed: ' + error.message)
-    }
+    setSizes(prev => prev.includes(size) 
+      ? prev.filter(item => item !== size)
+      : [...prev, size]
+    )
   }
 
   return (
-    <div className="p-4">
-      <div className="mb-6 flex flex-wrap gap-2">
-        <button 
-          onClick={testEndpoint}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-          type="button"
-        >
-          Test Backend Connection
-        </button>
-        <button 
-          onClick={testSimpleProduct}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
-          type="button"
-          disabled={loading}
-        >
-          Test Simple Product
-        </button>
-        <button 
-          onClick={() => {
-            console.log("Current form state:", {
-              name, description, price, category, subCategory, sizes, bestseller
-            })
-            toast.info('Check console for form state')
-          }}
-          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition"
-          type="button"
-        >
-          Log Form State
-        </button>
-      </div>
+    <div className="p-4 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Add New Product</h1>
       
-      <form onSubmit={onSubmitHandler} className='flex flex-col w-full items-start gap-4 p-4 border rounded-lg bg-white shadow-sm'>
-        <div className='w-full'>
-          <p className='mb-2 font-medium'>Upload Images (At least one required)</p>
+      <form onSubmit={onSubmitHandler} className='flex flex-col gap-6 p-6 border rounded-lg bg-white shadow'>
+        <div>
+          <label className='block mb-2 font-medium'>Product Images *</label>
           <div className='flex gap-4 flex-wrap'>
-            <label htmlFor="image1" className='cursor-pointer'>
-              <div className='w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden hover:border-gray-400 transition'>
-                {image1 ? (
-                  <img 
-                    className='w-full h-full object-cover' 
-                    src={URL.createObjectURL(image1)} 
-                    alt="Preview 1" 
+            {[1,2,3,4].map((num) => {
+              const imageState = [image1, image2, image3, image4][num-1]
+              const setImage = [setImage1, setImage2, setImage3, setImage4][num-1]
+              
+              return (
+                <label key={num} className='cursor-pointer'>
+                  <div className='w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden hover:border-gray-400'>
+                    {imageState ? (
+                      <img 
+                        className='w-full h-full object-cover' 
+                        src={URL.createObjectURL(imageState)} 
+                        alt={`Preview ${num}`} 
+                      />
+                    ) : (
+                      <div className='text-center'>
+                        <img className='w-8 h-8 mx-auto opacity-50' src={assets.upload_area} alt="Upload" />
+                        <p className='text-xs mt-1 text-gray-500'>Image {num}</p>
+                      </div>
+                    )}
+                  </div>
+                  <input 
+                    onChange={(e) => handleImageUpload(e, setImage)} 
+                    type="file"  
+                    id={`image${num}`} 
+                    hidden 
+                    accept="image/*"
+                    disabled={loading}
                   />
-                ) : (
-                  <img 
-                    className='w-10 h-10 opacity-50' 
-                    src={assets.upload_area} 
-                    alt="Upload" 
-                  />
-                )}
-              </div>
-              <p className='text-xs text-center mt-1 text-gray-500'>Image 1 *</p>
-              <input 
-                onChange={(e) => handleImageUpload(e, setImage1)} 
-                type="file"  
-                id="image1" 
-                hidden 
-                accept="image/*"
-                disabled={loading}
-              />
-            </label>
-
-            <label htmlFor="image2" className='cursor-pointer'>
-              <div className='w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden hover:border-gray-400 transition'>
-                {image2 ? (
-                  <img 
-                    className='w-full h-full object-cover' 
-                    src={URL.createObjectURL(image2)} 
-                    alt="Preview 2" 
-                  />
-                ) : (
-                  <img 
-                    className='w-10 h-10 opacity-50' 
-                    src={assets.upload_area} 
-                    alt="Upload" 
-                  />
-                )}
-              </div>
-              <p className='text-xs text-center mt-1 text-gray-500'>Image 2</p>
-              <input 
-                onChange={(e) => handleImageUpload(e, setImage2)} 
-                type="file"  
-                id="image2" 
-                hidden 
-                accept="image/*"
-                disabled={loading}
-              />
-            </label>
-
-            <label htmlFor="image3" className='cursor-pointer'>
-              <div className='w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden hover:border-gray-400 transition'>
-                {image3 ? (
-                  <img 
-                    className='w-full h-full object-cover' 
-                    src={URL.createObjectURL(image3)} 
-                    alt="Preview 3" 
-                  />
-                ) : (
-                  <img 
-                    className='w-10 h-10 opacity-50' 
-                    src={assets.upload_area} 
-                    alt="Upload" 
-                  />
-                )}
-              </div>
-              <p className='text-xs text-center mt-1 text-gray-500'>Image 3</p>
-              <input 
-                onChange={(e) => handleImageUpload(e, setImage3)} 
-                type="file"  
-                id="image3" 
-                hidden 
-                accept="image/*"
-                disabled={loading}
-              />
-            </label>
-
-            <label htmlFor="image4" className='cursor-pointer'>
-              <div className='w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden hover:border-gray-400 transition'>
-                {image4 ? (
-                  <img 
-                    className='w-full h-full object-cover' 
-                    src={URL.createObjectURL(image4)} 
-                    alt="Preview 4" 
-                  />
-                ) : (
-                  <img 
-                    className='w-10 h-10 opacity-50' 
-                    src={assets.upload_area} 
-                    alt="Upload" 
-                  />
-                )}
-              </div>
-              <p className='text-xs text-center mt-1 text-gray-500'>Image 4</p>
-              <input 
-                onChange={(e) => handleImageUpload(e, setImage4)} 
-                type="file"  
-                id="image4" 
-                hidden 
-                accept="image/*"
-                disabled={loading}
-              />
-            </label>
+                </label>
+              )
+            })}
           </div>
+          <p className='text-sm text-gray-500 mt-2'>First image is required</p>
         </div>
         
-        <div className='w-full'>
-          <p className='mb-2 font-medium'>Product Name *</p>
+        <div>
+          <label className='block mb-2 font-medium'>Product Name *</label>
           <input 
-            onChange={(e)=>setName(e.target.value)} 
             value={name} 
-            className='w-full max-w-[500px] px-3 py-2 border border-gray-300 rounded focus:border-black focus:ring-1 focus:ring-black outline-none transition disabled:bg-gray-100' 
+            onChange={(e)=>setName(e.target.value)} 
+            className='w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-black' 
             type='text' 
-            placeholder='Enter product name' 
+            placeholder='Enter product name'
             required
             disabled={loading}
           />
         </div>
 
-        <div className='w-full'>
-          <p className='mb-2 font-medium'>Product Description *</p>
+        <div>
+          <label className='block mb-2 font-medium'>Description *</label>
           <textarea 
-            onChange={(e)=>setDescription(e.target.value)} 
             value={description} 
-            className='w-full max-w-[500px] px-3 py-2 border border-gray-300 rounded focus:border-black focus:ring-1 focus:ring-black outline-none transition min-h-[100px] disabled:bg-gray-100' 
-            placeholder='Write product description here' 
+            onChange={(e)=>setDescription(e.target.value)} 
+            className='w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-black min-h-[100px]' 
+            placeholder='Product description'
             required
             disabled={loading}
           />
         </div>
         
-        <div className='flex flex-col sm:flex-row gap-4 w-full'>
-          <div className='w-full sm:w-auto'>
-            <p className='mb-2 font-medium'>Category *</p>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+          <div>
+            <label className='block mb-2 font-medium'>Category *</label>
             <select 
-              onChange={(e)=>setCategory(e.target.value)} 
-              value={category}
-              className='w-full px-3 py-2 border border-gray-300 rounded focus:border-black focus:ring-1 focus:ring-black outline-none transition disabled:bg-gray-100' 
+              value={category} 
+              onChange={(e)=>setCategory(e.target.value)}
+              className='w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-black'
               disabled={loading}
             >
               <option value="Men">Men</option>
@@ -436,12 +230,12 @@ const Add = ({token}) => {
             </select>
           </div>
 
-          <div className='w-full sm:w-auto'>
-            <p className='mb-2 font-medium'>Sub Category *</p>
+          <div>
+            <label className='block mb-2 font-medium'>Sub Category *</label>
             <select 
-              onChange={(e)=>setSubCategory(e.target.value)} 
-              value={subCategory}
-              className='w-full px-3 py-2 border border-gray-300 rounded focus:border-black focus:ring-1 focus:ring-black outline-none transition disabled:bg-gray-100' 
+              value={subCategory} 
+              onChange={(e)=>setSubCategory(e.target.value)}
+              className='w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-black'
               disabled={loading}
             >
               <option value="Topwear">Topwear</option>
@@ -450,14 +244,14 @@ const Add = ({token}) => {
             </select>
           </div>
 
-          <div className='w-full sm:w-auto'>
-            <p className='mb-2 font-medium'>Price *</p>
+          <div>
+            <label className='block mb-2 font-medium'>Price *</label>
             <input 
-              onChange={(e)=>setPrice(e.target.value)} 
-              value={price}
-              className='w-full px-3 py-2 border border-gray-300 rounded focus:border-black focus:ring-1 focus:ring-black outline-none transition disabled:bg-gray-100' 
+              value={price} 
+              onChange={(e)=>setPrice(e.target.value)}
+              className='w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-black' 
               type="number" 
-              placeholder='25'
+              placeholder='0.00'
               min="0"
               step="0.01"
               required
@@ -466,64 +260,49 @@ const Add = ({token}) => {
           </div>
         </div>
 
-        <div className='w-full'>
-          <p className='mb-2 font-medium'>Available Sizes</p>
-          <div className='flex gap-3 flex-wrap'>
+        <div>
+          <label className='block mb-2 font-medium'>Available Sizes</label>
+          <div className='flex gap-2 flex-wrap'>
             {['S', 'M', 'L', 'XL', 'XXL'].map((size) => (
               <button
                 key={size}
                 type="button"
                 onClick={() => toggleSize(size)}
-                className={`px-4 py-2 border rounded transition disabled:opacity-50 ${
-                  sizes.includes(size) 
-                    ? 'bg-pink-100 border-pink-300 text-pink-700 font-medium' 
-                    : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 border rounded ${sizes.includes(size) ? 'bg-black text-white' : 'bg-gray-100'}`}
                 disabled={loading}
               >
                 {size}
               </button>
             ))}
           </div>
-          <p className={`mt-2 text-sm ${sizes.length > 0 ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
-            Selected: {sizes.length > 0 ? sizes.join(', ') : 'No sizes selected'}
-          </p>
         </div>
 
-        <div className='flex gap-2 mt-2 items-center'>
+        <div className='flex gap-2 items-center'>
           <input 
-            onChange={()=> setBestseller(prev => !prev)} 
             checked={bestseller} 
+            onChange={()=> setBestseller(!bestseller)} 
             type="checkbox" 
             id='bestseller' 
-            className='w-4 h-4 disabled:opacity-50'
+            className='w-4 h-4'
             disabled={loading}
           />
-          <label className={`cursor-pointer font-medium ${loading ? 'opacity-50' : ''}`} htmlFor="bestseller">
+          <label htmlFor="bestseller" className='font-medium'>
             Mark as Bestseller
           </label>
         </div>
 
         <button 
           type="submit" 
-          className={`w-32 py-3 mt-4 text-white rounded font-medium transition ${
-            loading 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-black hover:bg-gray-800'
-          }`}
           disabled={loading}
+          className={`w-full py-3 text-white rounded font-medium ${loading ? 'bg-gray-400' : 'bg-black hover:bg-gray-800'}`}
         >
-          {loading ? 'Adding...' : 'Add Product'}
+          {loading ? 'Adding Product...' : 'Add Product'}
         </button>
         
-        <div className="mt-4 p-3 bg-gray-50 rounded border text-sm w-full max-w-[500px]">
+        <div className="p-3 bg-gray-50 rounded text-sm">
           <p className="font-medium mb-1">Debug Info:</p>
-          <p><span className="font-medium">Backend URL:</span> {Backend_URL || 'Not set'}</p>
-          <p><span className="font-medium">Token:</span> {token ? 'Present' : 'Missing'}</p>
-          <p><span className="font-medium">Fields filled:</span> {name && description && price ? '✅' : '❌'}</p>
-          <p><span className="font-medium">Image uploaded:</span> {image1 ? '✅' : '❌'}</p>
-          <p><span className="font-medium">Sizes selected:</span> {sizes.length} ({sizes.join(', ') || 'None'})</p>
-          <p className="mt-1 text-xs">Open browser console (F12) for detailed logs</p>
+          <p>Backend: {Backend_URL}</p>
+          <p>Token: {token ? 'Present' : 'Missing'}</p>
         </div>
       </form>
     </div>

@@ -1,41 +1,51 @@
 import React from 'react'
-import {Routes,Route} from 'react-router-dom'
-import Home from './pages/Home'
-import Collection from './pages/Collection'
-import About from './pages/About'
-import Contact from './pages/Contact'
-import Product from './pages/Product'
-import Cart from './pages/Cart'
-import Login from './pages/Login'
-import Placeorder from './pages/Placeorder'
-import Orders from './pages/Orders'
+import { Routes, Route, useLocation } from 'react-router-dom'
+
+// Components
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import SearchBar from './components/SearchBar'
-import { ToastContainer, toast } from 'react-toastify';
+import CheckStatus from './components/CheckStatus'
 
-// ✅ Move this to your index.html or use Helmet component
-// <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" />
+// Pages
+import Home from './pages/Home'
+import ProductDetail from './components/ProductDetail'
+import SearchResults from './components/SearchResults'
+import Cart from './pages/Cart'
+import Collection from './pages/Collection'
+import About from './pages/About'
+import Contact from './pages/Contact'
+import Login from './pages/Login'
+import Checkout from './pages/Checkout'
+import Orders from './pages/Orders' // ✅ Add this import
 
-const App = () => {
+// Export backend URL for all components
+export const Backend_URL = 'http://localhost:3000'
+export const currency = '$'
+
+function App() {
+  const location = useLocation(); // Get current route
+
   return (
-    <div className='px-4 sm:px-[5vw] md:px-[7vw] lg:px-[9vw]'>
-      <ToastContainer />
+    <>
+      <CheckStatus />
       <Navbar />
-      <SearchBar />
+      {/* Conditionally render SearchBar only on Home and Collection pages */}
+      {['/', '/collection'].includes(location.pathname) && <SearchBar />}
       <Routes>
-        <Route path='/' element={<Home/>}/>
-        <Route path='/collection' element={<Collection/>}/>
-        <Route path='/about' element={<About/>}/>
-        <Route path='/contact' element={<Contact/>}/>
-        <Route path='/product/:productId' element={<Product/>}/>
-        <Route path='/cart' element={<Cart/>}/>
-        <Route path='/login' element={<Login/>}/>
-        <Route path='/placeorder' element={<Placeorder/>}/>
-        <Route path='/orders' element={<Orders/>}/>
+        <Route path="/" element={<Home />} />
+        <Route path="/product/:id" element={<ProductDetail />} />
+        <Route path="/search" element={<SearchResults />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/collection" element={<Collection />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/orders" element={<Orders />} /> {/* ✅ Add this route */}
       </Routes>
       <Footer />
-   </div>
+    </>
   )
 }
 

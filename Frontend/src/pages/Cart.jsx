@@ -1,75 +1,164 @@
 import React, { useContext, useEffect, useState } from 'react'
-import { ShopContext } from '../context/ShopContext';
-import { Link } from 'react-router-dom'
-import Title from '../components/Title';
-import { assets } from '../assets/assets';
-import CartTotal from '../components/CartTotal';
+import { ShopContext } from '../context/ShopContext'
+import { useNavigate } from 'react-router-dom'
+import Title from '../components/Title'
+import { assets } from '../assets/assets'
+import CartTotal from '../components/CartTotal'
 
 const Cart = () => {
-    const {products,currency,CartItems,updatequantity,navigate}=useContext(ShopContext);
-    const [CartData,setCartData]=useState([]);
-    useEffect(()=>{
-        const tempData = [];
-        // CartItems keys are strings (object keys). Convert id to number for product lookup.
-        for (const items in CartItems) {
-            for (const item in CartItems[items]) {
-                if (CartItems[items][item] > 0) {
-                    tempData.push({
-                        id: Number(items),
-                        size: item,
-                        quantity: CartItems[items][item]
-                    })
-                }
-            }
-        }
-        setCartData(tempData);
-    }, [CartItems]);
+    const { 
+        products, 
+        currency, 
+        cartItems, 
+        getCartAmount, 
+        getProductById, 
+        removeFromCart,
+        updateCartQuantity 
+    } = useContext(ShopContext)
+    
+    const navigate = useNavigate()
+    const [cartData, setCartData] = useState([])
 
-    return (
-      <div className='border-t pt-14 '>
-        <div className='text-2xl mb-3'>
-            <Title text1={'YOUR'} text2={'CART'}/>
-
-        </div>
-        <div>
-            {
-                CartData.map((item,index)=>{
-                    const productData=products.find((product)=>product.id === item.id);
-                    return(
-                        <div key={index} className='py-4 border-t border-b text-gray-700 grid grid-cols-[4fr_0.5fr_0.5fr] sm:grid-cols-[4fr_2fr_0.5fr] items-center gap-4'>
-                          <div className='flex items-start gap-6'>
-                            <img className='w-16 sm:w-20' src={productData.image[0]} alt="" />
-                             <div>
-                                <p className='text-xs sm:text-lg font-medium'>
-                                    {productData.name}
-                                </p>
-                                <div className='flex items-center gap-5 mt-2'>
-                                    <p>{currency}{productData.price}</p>
-                                    <p className='px-2 sm:px-3 sm:py-1 border bg-slate-50'>{item.size}</p>
-
-                                </div>
-                             </div>
-                          </div>
-                           <input onChange={(e)=> e.target.value === '' || e.target.value ==='0' ? null : updatequantity(item.id,item.size,Number(e.target.value))} type="number" min={1} defaultValue={item.quantity} className='border max-w-10 sm:max-w-20 px-1 sm:px-2 py-1' />
-                           <img onClick={()=>updatequantity(item.id,item.size,0)} src={assets.bin_icon} className='w-4 mr-4 sm:w-5 cursor-pointer ' alt="" />
-
-                        </div>
-                    )
+    useEffect(() => {
+        const tempData = []
+        
+        for (const itemId in cartItems) {
+            const quantity = cartItems[itemId]
+            if (quantity > 0) {
+                tempData.push({
+                    id: itemId,
+                    quantity: quantity
                 })
             }
+        }
+        setCartData(tempData)
+    }, [cartItems])
+
+    const handleQuantityChange = (itemId, newQuantity) => {
+        if (newQuantity < 1) {
+            removeFromCart(itemId)
+        } else {
+            updateCartQuantity(itemId, newQuantity)
+        }
+    }
+
+    const handleRemoveItem = (itemId) => {
+        removeFromCart(itemId)
+    }
+
+    if (cartData.length === 0) {
+        return (
+            <div className='border-t pt-14 text-center py-16'>
+                <div className='text-2xl mb-3'>
+                    <Title text1={'YOUR'} text2={'CART'}/>
+                </div>
+                <p className='text-gray-500 mb-6'>Your cart is empty</p>
+                <button 
+                    onClick={() => navigate('/collection')}
+                    className='bg-black text-white text-sm px-8 py-3 hover:bg-gray-800 transition'
+                >
+                    SHOP NOW
+                </button>
+            </div>
+        )
+    }
+
+    return (
+      <div className='border-t pt-14 max-w-7xl mx-auto px-4'>
+        <div className='text-2xl mb-8'>
+            <Title text1={'YOUR'} text2={'CART'}/>
         </div>
-        <div className='flex justify-end my-20'>
+        
+        <div>
+            {cartData.map((item, index) => {
+                const productData = getProductById(item.id)
+                
+                if (!productData) {
+                    return null
+                }
+                
+                return (
+                    <div key={index} className='py-6 border-b flex flex-col sm:flex-row items-center justify-between gap-6'>
+                      <div className='flex items-center gap-6 flex-1'>
+                        {(() => {
+                            const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e5e7eb' width='80' height='80'/%3E%3Ctext fill='%239ca3af' font-family='sans-serif' font-size='12' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ENo Image%3C/text%3E%3C/svg%3E"
+                            const imageSrc = productData.image || (Array.isArray(productData.images) && productData.images.length > 0 ? productData.images[0] : null) || placeholderImage
+                            return (
+                                <img 
+                                    className='w-20 h-20 object-cover rounded' 
+                                    src={imageSrc} 
+                                    alt={productData.name}
+                                    onError={(e) => {
+                                        e.target.src = placeholderImage
+                                        e.target.onerror = null
+                                    }}
+                                />
+                            )
+                        })()}
+                         <div>
+                            <p className='font-medium text-gray-800'>{productData.name}</p>
+                            <div className='flex items-center gap-5 mt-2'>
+                                <p className='font-semibold'>{currency}{productData.price}</p>
+                            </div>
+                         </div>
+                      </div>
+                      
+                      <div className='flex items-center gap-6'>
+                        <div className='flex items-center border rounded'>
+                            <button 
+                                onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                                className='px-3 py-1 hover:bg-gray-100'
+                            >
+                                -
+                            </button>
+                            <input 
+                                value={item.quantity}
+                                onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
+                                type="number" 
+                                min="1" 
+                                className='w-16 text-center py-1 border-x'
+                            />
+                            <button 
+                                onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                                className='px-3 py-1 hover:bg-gray-100'
+                            >
+                                +
+                            </button>
+                        </div>
+                        
+                        <p className='font-semibold w-20 text-right'>
+                            {currency}{productData.price * item.quantity}
+                        </p>
+                        
+                        <button 
+                            onClick={() => handleRemoveItem(item.id)}
+                            className='text-red-500 hover:text-red-700'
+                        >
+                            <img 
+                                src={assets.bin_icon} 
+                                className='w-5 h-5' 
+                                alt="Remove" 
+                            />
+                        </button>
+                      </div>
+                    </div>
+                )
+            })}
+        </div>
+        
+        <div className='flex justify-end my-10'>
             <div className='w-full sm:w-[450px]'>
                 <CartTotal />
-                <div className='w-full text-end'>
-                    <button onClick={()=>navigate('/placeorder')} className='bg-black text-white text-sm my-8 px-8  mt-5 py-3'>PROCEED TO CHECKOUT</button>
-
+                <div className='w-full text-end mt-8'>
+                    <button 
+                        onClick={() => navigate('/checkout')} 
+                        className='bg-black text-white text-sm px-8 py-3 hover:bg-gray-800 transition'
+                    >
+                        PROCEED TO CHECKOUT
+                    </button>
                 </div>
-
             </div>
-
         </div>
-
       </div>
     )
 }

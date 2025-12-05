@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState,useContext } from 'react'
 
 const Login = () => {
+  const{token,setToken,navigate,backendUrl}=useContext(ShopContext);
   const [currentState,setcurrentState]=useState('Sign Up');
   const onSubmitHandler=async(event)=>{
     event.preventDefault();

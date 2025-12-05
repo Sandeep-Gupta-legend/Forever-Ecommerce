@@ -1,3 +1,4 @@
+
 import userModel from "../models/userModel.js";
 import validator from "validator";
 import bycrypt from "bcrypt";
@@ -64,18 +65,39 @@ const loginUser = async (req, res) => {
 };
 const adminLogin = async (req, res) => {
   try{
+    console.log("=== ADMIN LOGIN ===");
+    console.log("Email:", req.body.email);
+    console.log("Admin Email from env:", process.env.ADMIN_EMAIL);
     
     const {email,password}=req.body;
+    
     if(email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD){
-      const token = jwt.sign(email+password,process.env.JWT_SECRET);
-      res.json({success:true,token});
+      // Create token with admin credentials
+      const adminString = email + password;
+      const token = jwt.sign(adminString, process.env.JWT_SECRET);
+      
+      console.log("Admin login successful");
+      console.log("Generated token:", token);
+      
+      res.json({
+        success: true,
+        message: "Admin login successful",
+        token: token
+      });
     }
     else{
-      return res.json({success:false,message:"Invalid password"});
+      console.log("Invalid admin credentials");
+      return res.status(401).json({
+        success: false,
+        message: "Invalid admin credentials"
+      });
     }
-  }catch{
-    console.log(error);
-    res.json({success:false,message:"Something went wrong"});
+  } catch(error) {
+    console.log("Admin login error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong"
+    });
   }
  
 };
